@@ -1,0 +1,42 @@
+#!/bin/busybox ash
+. /etc/init.d/tc-functions
+
+USER="tc"
+DISK="sda1"
+
+VERSION="$(cat /usr/share/doc/tc/release.txt)"
+echo "${GREEN}Booting ${YELLOW}Core $VERSION ${NORMAL}"
+
+# Start Udev to populate /dev and handle hotplug events
+/sbin/udevd --daemon >/dev/null 2>&1
+/sbin/udevadm trigger --action=add >/dev/null 2>&1
+
+# minimal tinycore environment
+echo "$USER" > /etc/sysconfig/tcuser
+echo "$DISK" > /etc/sysconfig/backup_device
+mkdir -p /mnt/"$DISK"
+echo "/dev/$DISK       /mnt/$DISK       ext2     noauto,users,exec,relatime 0 0" >> /etc/fstab
+filetool.sh -r >/dev/null 2>&1
+if [ ! -e /home/"$USER" ]; then
+	mkdir -p /home/"$USER"
+	cp -pr /etc/skel/. /home/"$USER"
+	chown -R "$USER":staff /home/"$USER"
+	chmod 2755 /home/"$USER"
+fi
+mkdir /tmp/tce /tmp/tcloop
+chown root:staff /tmp/tce /tmp/tcloop
+chmod 775 /tmp/tce /tmp/tcloop
+ln -s /tmp/tce /etc/sysconfig/tcedir
+touch /var/tmp/k5_skip
+
+# start networking
+modprobe ipv6
+ifconfig lo 127.0.0.1 netmask 255.0.0.0
+
+# Wait until all devices have registered
+echo -n "${BLUE}Waiting until all devices have registered...${NORMAL}"
+/sbin/udevadm settle --timeout=10
+echo "${GREEN} Done.${NORMAL}"
+
+# user defined initialization
+/opt/bootsync.sh

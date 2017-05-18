@@ -1,0 +1,53 @@
+{
+    "variables": {
+        "tc_iso_url": "http://distro.ibiblio.org/tinycorelinux/7.x/x86/archive/7.2/Core-7.2.iso",
+        "tc_iso_checksum": "77bf8cceacd2110120451f3f22f85156",
+        "vm_name": "microcore-mininit.qcow2",
+        "setup_script": "microcore-mininit.sh",
+        "disk_size": "32"
+    },
+    "builders": [
+        {
+            "type": "qemu",
+            "iso_url": "{{user `tc_iso_url`}}",
+            "iso_checksum": "{{user `tc_iso_checksum`}}",
+            "iso_checksum_type": "md5",
+            "shutdown_command": "sudo poweroff",
+            "format": "qcow2",
+            "headless": false,
+            "ssh_username": "tc",
+            "ssh_password": "tc",
+            "accelerator": "none",
+            "vm_name": "{{user `vm_name`}}",
+            "disk_interface": "ide",
+            "disk_size": "{{user `disk_size`}}",
+            "net_device": "e1000",
+            "http_directory": "http",
+            "boot_wait": "5s",
+            "boot_command": [
+                "mc http={{ .HTTPIP }}:{{ .HTTPPort }}<enter><wait10><wait10><wait10><wait10>",
+                "sudo udhcpc<enter>",
+                "sudo passwd tc<enter>tc<enter>tc<enter>",
+                "tce-load -wi openssh<enter><wait10>",
+                "cd /usr/local/etc/ssh; [ -f sshd_config.example ] && sudo cp -a sshd_config.example sshd_config; cd<enter>",
+                "sudo /usr/local/etc/init.d/openssh start<enter>"
+            ]
+        }
+    ],
+    "provisioners": [
+        {
+            "type": "shell",
+            "script": "scripts/{{user `setup_script`}}"
+        }
+    ],
+    "post-processors": [
+        {
+            "type": "shell-local",
+            "inline": [
+                "cd output-qemu", 
+                "qemu-img convert -O qcow2 -o compat=0.10 '{{user `vm_name`}}' new_image",
+                "mv new_image '{{user `vm_name`}}'"
+            ]
+        }
+    ]
+}
